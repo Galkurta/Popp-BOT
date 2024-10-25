@@ -11,7 +11,6 @@ from config.banner import show_banner
 # Initialize colorama
 init(autoreset=True)
 
-
 class Colors:
     RED = Fore.LIGHTRED_EX
     WHITE = Fore.LIGHTWHITE_EX
@@ -20,7 +19,6 @@ class Colors:
     BLUE = Fore.LIGHTBLUE_EX
     BLACK = Fore.LIGHTBLACK_EX
     RESET = Style.RESET_ALL
-
 
 class Config:
     API_BASE_URL = "https://moon.popp.club"
@@ -41,7 +39,6 @@ class Config:
         "Referer": WEB_REFERER,
         "Accept-Language": "en-US,en;q=0.9",
     }
-
 
 class ApiResponse:
     def __init__(self, response):
@@ -68,7 +65,6 @@ class ApiResponse:
     def get_error_message(self):
         return self.message or "Unknown error occurred"
 
-
 class TokenManager:
     @staticmethod
     def get_local_token(userid):
@@ -93,7 +89,6 @@ class TokenManager:
             acc[str(userid)] = data
             open(file, "w").write(json.dumps(acc, indent=4))
 
-
 class ApiClient:
     def __init__(self, token=None):
         self.headers = Config.HEADERS.copy()
@@ -109,7 +104,6 @@ class ApiClient:
     def get(self, endpoint, params=None):
         url = f"{Config.API_BASE_URL}{endpoint}"
         return requests.get(url, params=params, headers=self.headers)
-
 
 class PoppBot:
     def __init__(self):
@@ -131,9 +125,7 @@ class PoppBot:
 
     def log(self, message):
         if message.strip():
-            print(
-                f"{Colors.BLACK}[ {Colors.GREEN}Popp-BOT{Colors.BLACK} ]{Colors.RESET} {message}"
-            )
+            print(f"{Colors.BLACK}[ {Colors.GREEN}Popp-BOT{Colors.BLACK} ]{Colors.RESET} {message}")
         else:
             print()
 
@@ -141,13 +133,68 @@ class PoppBot:
         while t:
             minutes, seconds = divmod(t, 60)
             hours, minutes = divmod(minutes, 60)
-            timer = (
-                f"{str(hours).zfill(2)}:{str(minutes).zfill(2)}:{str(seconds).zfill(2)}"
-            )
+            timer = f"{str(hours).zfill(2)}:{str(minutes).zfill(2)}:{str(seconds).zfill(2)}"
             print(f"{Colors.YELLOW}waiting until {timer} ", flush=True, end="\r")
             t -= 1
             time.sleep(1)
         print(" " * 30, flush=True, end="\r")
+
+    def check_task(self, api_client, task_id):
+        try:
+            response = ApiResponse(api_client.get(f"/moon/task/check", params={"taskId": task_id}))
+            if response.is_success():
+                self.log(f"{Colors.GREEN}Successfully checked task #{task_id}")
+                return True
+            else:
+                self.log(f"{Colors.RED}Failed to check task #{task_id}")
+                return False
+        except Exception as e:
+            self.log(f"{Colors.RED}Error checking task #{task_id}: {str(e)}")
+            return False
+
+    def handle_tasks(self, api_client):
+        try:
+            response = ApiResponse(api_client.get("/moon/task/list"))
+            if response.is_success():
+                data = response.data
+                if isinstance(data, list):
+                    self.log(f"{Colors.GREEN}PROCESSING TASKS")
+                    for task in data:
+                        task_id = task.get("taskId")
+                        name = task.get("name", "").lower()
+                        current = task.get("current", 0)
+                        threshold = task.get("threshold", 0)
+                        status = task.get("status", 0)
+                    
+                        # Skip tasks that require manual action
+                        if "vote" in name or "bybit" in name:
+                            continue
+
+                        # Handle automatable tasks
+                        if status != 2:  # If task not completed
+                            # For invite task
+                            if "invite" in name:
+                                if current >= threshold:  # If already met the requirement
+                                    self.check_task(api_client, task_id)
+                                    self.log(f"{Colors.GREEN}Invite task completed! ({current}/{threshold})")
+                                else:
+                                    self.log(f"{Colors.YELLOW}Invite progress: {current}/{threshold}")
+
+                        # For explore task
+                        elif "explore" in name:
+                            if current >= threshold:  # If already met the requirement
+                                self.check_task(api_client, task_id)
+                                self.log(f"{Colors.GREEN}Explore task completed! ({current}/{threshold})")
+                            else:
+                                self.log(f"{Colors.YELLOW}Explore progress: {current}/{threshold}")
+
+                        self.countdown(2)  # Small delay between task checks
+                else:
+                    self.log(f"{Colors.RED}Invalid task list format")
+            else:
+                self.log(f"{Colors.RED}Failed to get task list")
+        except Exception as e:
+            self.log(f"{Colors.RED}Error processing tasks: {str(e)}")
 
     def get_asset_info(self, api_client):
         try:
@@ -160,9 +207,7 @@ class PoppBot:
                     address_type = data.get("addressWalletType", "N/A")
 
                     # Get farming times
-                    farming_start = self.format_timestamp(
-                        data.get("farmingStartTime", 0)
-                    )
+                    farming_start = self.format_timestamp(data.get("farmingStartTime", 0))
                     farming_end = self.format_timestamp(data.get("farmingEndTime", 0))
 
                     # Get equipped ship info
@@ -170,9 +215,7 @@ class PoppBot:
                     ship_name = equipped_ship.get("name", "N/A")
                     ship_type = equipped_ship.get("type", "N/A")
                     ship_level = equipped_ship.get("level", "N/A")
-                    ship_owned = self.format_timestamp(
-                        equipped_ship.get("ownedTime", 0)
-                    )
+                    ship_owned = self.format_timestamp(equipped_ship.get("ownedTime", 0))
 
                     # Display information
                     self.log(f"{Colors.GREEN}ASSET INFORMATION")
@@ -190,7 +233,6 @@ class PoppBot:
                     self.log(f"{Colors.RED}Invalid asset info format")
             else:
                 self.log(f"{Colors.RED}Failed to get asset info")
-
         except Exception as e:
             self.log(f"{Colors.RED}Error getting asset info: {str(e)}")
 
@@ -241,38 +283,28 @@ class PoppBot:
                         self.log(f"{Colors.RED}Token not found in response")
                         return False
                 else:
-                    self.log(
-                        f"{Colors.RED}Login failed: {api_response.get_error_message()}"
-                    )
+                    self.log(f"{Colors.RED}Login failed: {api_response.get_error_message()}")
                     return False
-
             except Exception as e:
                 self.log(f"{Colors.RED}API request failed: {str(e)}")
                 return False
-
         except Exception as e:
             self.log(f"{Colors.RED}Login process failed: {str(e)}")
             return False
 
     def explore_planet(self, api_client, planet_id):
         try:
-            response = ApiResponse(
-                api_client.get("/moon/explorer", params={"plantId": planet_id})
-            )
-
+            response = ApiResponse(api_client.get("/moon/explorer", params={"plantId": planet_id}))
             if response.is_success():
                 data = response.data
                 if isinstance(data, dict):
                     index = data.get("index", 0)
                     special_code = data.get("specialCode")
-                    self.log(
-                        f"{Colors.GREEN}Planet {planet_id} explored - Index: {index} {special_code if special_code else ''}"
-                    )
+                    self.log(f"{Colors.GREEN}Planet {planet_id} explored - Index: {index} {special_code if special_code else ''}")
                 else:
                     self.log(f"{Colors.RED}Invalid explorer response format")
             else:
                 self.log(f"{Colors.RED}Failed exploring planet {planet_id}")
-
         except Exception as e:
             self.log(f"{Colors.RED}Error exploring planet {planet_id}: {str(e)}")
 
@@ -295,7 +327,6 @@ class PoppBot:
                     self.log(f"{Colors.YELLOW}Farming already active")
                 else:
                     self.log(f"{Colors.RED}Failed to start farming: {error_msg}")
-
         except Exception as e:
             self.log(f"{Colors.RED}Error in farming handler: {str(e)}")
 
@@ -315,6 +346,9 @@ class PoppBot:
 
             # Get detailed asset info first
             self.get_asset_info(api_client)
+            
+            # Handle tasks
+            self.handle_tasks(api_client)
 
             # Get assets
             response = ApiResponse(api_client.get("/moon/asset"))
@@ -386,9 +420,7 @@ class PoppBot:
                             userid = user["id"]
                             username = user.get("first_name", "Unknown")
                         except Exception as e:
-                            self.log(
-                                f"{Colors.RED}Error parsing account data: {str(e)}"
-                            )
+                            self.log(f"{Colors.RED}Error parsing account data: {str(e)}")
                             failed_accounts.append((no, "Data parsing error"))
                             continue
 
@@ -404,9 +436,7 @@ class PoppBot:
                             self.countdown(5)
 
                         if not self.perform_game_actions(access_token):
-                            failed_accounts.append(
-                                (no, f"{username} - Game actions failed")
-                            )
+                            failed_accounts.append((no, f"{username} - Game actions failed"))
                             continue
 
                         self.countdown(5)
@@ -428,9 +458,7 @@ class PoppBot:
 
         except KeyboardInterrupt:
             print()
-            self.log(
-                f"{Colors.YELLOW}Program stopped by user. Thank you for using Popp-BOT!"
-            )
+            self.log(f"{Colors.YELLOW}Program stopped by user. Thank you for using Popp-BOT!")
             sys.exit(0)
         except Exception as e:
             self.log(f"{Colors.RED}Critical error occurred: {str(e)}")
