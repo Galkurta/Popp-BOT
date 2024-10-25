@@ -15,7 +15,7 @@ cd Popp-BOT
 ## Usage
 ### Install requirements
 ```
-pip install -r requirements
+pip install -r requirements.txt
 ```
 
 ### Edit data.txt
